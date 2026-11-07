@@ -1,0 +1,83 @@
+services:
+  db:
+    image: postgres:16
+    container_name: notepilot_db
+    environment:
+      POSTGRES_USER: notepilot
+      POSTGRES_PASSWORD: notepilot
+    ports:
+      - "5434:5432"
+    volumes:
+      - notepilot_pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U notepilot -d notepilot"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  auth:
+    build: ./services/auth
+    container_name: notepilot_auth
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      DATABASE_URL: postgresql+psycopg2://notepilot:notepilot@db:5432/notepilot_auth
+      WATCHFILES_FORCE_POLLING: "true"
+    volumes:
+      - ./services/auth:/app
+    ports:
+      - "8001:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  notes:
+    build: ./services/notes
+    container_name: notepilot_notes
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      DATABASE_URL: postgresql+psycopg2://notepilot:notepilot@db:5432/notepilot_notes
+      WATCHFILES_FORCE_POLLING: "true"
+    volumes:
+      - ./services/notes:/app
+    ports:
+      - "8002:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  ai:
+    build: ./services/ai
+    container_name: notepilot_ai
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      DATABASE_URL: postgresql+psycopg2://notepilot:notepilot@db:5432/notepilot_ai
+      WATCHFILES_FORCE_POLLING: "true"
+    volumes:
+      - ./services/ai:/app
+    ports:
+      - "8003:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  gateway:
+    build: ./services/gateway
+    container_name: notepilot_gateway
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      AUTH_URL: http://auth:8000
+      NOTES_URL: http://notes:8000
+      AI_URL: http://ai:8000
+      WATCHFILES_FORCE_POLLING: "true"
+    volumes:
+      - ./services/gateway:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - auth
+      - notes
+      - ai
+
+volumes:
+  notepilot_pgdata:
