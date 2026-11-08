@@ -2,8 +2,10 @@ from fastapi import FastAPI
 from sqlalchemy import text
 
 from app.database import engine
+from app.routes import router
 
 app = FastAPI(title="NotePilot Notes service")
+app.include_router(router)
 
 
 @app.get("/health")

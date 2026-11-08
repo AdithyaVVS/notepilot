@@ -38,6 +38,7 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
       DATABASE_URL: postgresql+psycopg2://notepilot:notepilot@db:5432/notepilot_notes
+      JWT_SECRET: ${JWT_SECRET}
       WATCHFILES_FORCE_POLLING: "true"
     volumes:
       - ./services/notes:/app
