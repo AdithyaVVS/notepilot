@@ -38,11 +38,13 @@ class AnalysisResult(BaseModel):
     action_items: list[ActionItem]
     dropped_items: int
     attempts: int
+    source: Literal["ai", "cache", "sample"] = "ai"
 
 
 class AnalyzeIn(BaseModel):
     note: str = Field(min_length=10, max_length=MAX_NOTE_CHARS)
     today: date | None = None
+    mode: Literal["ai", "sample"] = "ai"
 
     @field_validator("note")
     @classmethod

@@ -54,7 +54,11 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg2://notepilot:notepilot@db:5432/notepilot_ai
       JWT_SECRET: ${JWT_SECRET}
-      LLM_PROVIDER: fake
+      LLM_PROVIDER: ${LLM_PROVIDER:-fake}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
+      USER_DAILY_LIMIT: ${USER_DAILY_LIMIT:-10}
+      GLOBAL_DAILY_LIMIT: ${GLOBAL_DAILY_LIMIT:-80}
       WATCHFILES_FORCE_POLLING: "true"
     volumes:
       - ./services/ai:/app

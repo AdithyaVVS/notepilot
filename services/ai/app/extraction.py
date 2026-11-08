@@ -69,9 +69,9 @@ def build_result(analysis: RawAnalysis, note: str, today: date, attempts: int):
     )
 
 
-def analyze_note(
-    note: str, provider: LLMProvider, today: date, max_attempts: int = 2
-) -> AnalysisResult:
+def extract_raw(note: str, provider: LLMProvider, max_attempts: int):
+    """Ask the model and validate its reply, retrying with feedback.
+    Returns (validated reply, attempts used)."""
     content = wrap_note(note)
     error = None
     for attempt in range(1, max_attempts + 1):
@@ -80,9 +80,14 @@ def analyze_note(
             instructions += retry_note(error)
         raw = provider.generate(instructions, content)
         try:
-            analysis = RawAnalysis.model_validate(parse_json(raw))
+            return RawAnalysis.model_validate(parse_json(raw)), attempt
         except ValueError as exc:  # bad JSON and failed validation both land here
             error = str(exc).replace("\n", " ")[:300]
-            continue
-        return build_result(analysis, note, today, attempt)
     raise ExtractionError(f"No valid reply after {max_attempts} attempts: {error}")
+
+
+def analyze_note(
+    note: str, provider: LLMProvider, today: date, max_attempts: int = 2
+) -> AnalysisResult:
+    analysis, attempts = extract_raw(note, provider, max_attempts)
+    return build_result(analysis, note, today, attempts)
