@@ -92,3 +92,20 @@ def test_health_does_not_wait_for_a_sleeping_service(client, upstream):
     assert body["status"] == "degraded"
     assert body["services"]["auth"] == {"status": "error", "code": 502}
     assert len(upstream.requests) == 3
+
+
+def test_warmup_gives_the_browser_a_wake_url_for_services_that_are_down(client, upstream):
+    def respond(request):
+        if request.url.host == "notes":
+            return httpx.Response(502)
+        return service_health(request)
+
+    upstream.respond = respond
+    body = client.get("/api/warmup?patience=0").json()
+    assert body["services"]["notes"]["wake_url"].endswith("/health")
+    assert "wake_url" not in body["services"]["auth"]
+    assert sum(1 for r in upstream.requests if r.url.host == "notes") == 1
+
+
+def test_warmup_rejects_an_absurd_patience(client):
+    assert client.get("/api/warmup?patience=9999").status_code == 422

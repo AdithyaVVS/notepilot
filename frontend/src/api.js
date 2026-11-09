@@ -94,7 +94,7 @@ async function request(path, { method = "GET", body, auth = true } = {}) {
 }
 
 export const api = {
-  warmup: () => request("/warmup", { auth: false }),
+  warmup: () => request("/warmup?patience=0", { auth: false }),
 
   register: (email, password) =>
     request("/auth/register", { method: "POST", body: { email, password }, auth: false }),

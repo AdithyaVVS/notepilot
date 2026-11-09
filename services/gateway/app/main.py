@@ -3,7 +3,7 @@ import time
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
@@ -96,14 +96,23 @@ async def system_health(client: httpx.AsyncClient = Depends(get_client)):
 
 
 @app.get("/api/warmup")
-async def warmup(client: httpx.AsyncClient = Depends(get_client)):
-    """Wakes every service at once. On free hosting each one can take up to a
-    minute to start, and waking them together costs one wait instead of three."""
+async def warmup(
+    patience: float = Query(50, ge=0, le=50),
+    client: httpx.AsyncClient = Depends(get_client),
+):
+    """Reports whether every service is up, waiting up to `patience` seconds.
+
+    Free hosting wakes a sleeping service when a browser asks for it, but not when
+    another service does. So every service that is not up comes with a wake_url, and
+    the browser opens those addresses itself."""
     started = time.monotonic()
-    result = await check_all(client, timeout=10, patience=50)
+    result = await check_all(client, timeout=10, patience=patience)
+    urls = service_urls()
+    for name, info in result["services"].items():
+        if info.get("status") != "ok":
+            info["wake_url"] = f"{urls[name]}/health"
     result["elapsed_ms"] = int((time.monotonic() - started) * 1000)
     return result
-
 
 async def forward(
     request: Request, service: str, path: str, client: httpx.AsyncClient
