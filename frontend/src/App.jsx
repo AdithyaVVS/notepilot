@@ -5,6 +5,7 @@ import { WarmupBanner, useWarmup } from "./components/Warmup.jsx";
 import AuthPage from "./pages/AuthPage.jsx";
 import NotePage from "./pages/NotePage.jsx";
 import NotesPage from "./pages/NotesPage.jsx";
+import TasksPage from "./pages/TasksPage.jsx";
 
 function RequireAuth({ children }) {
   const { status } = useAuth();
@@ -35,6 +36,14 @@ export default function App() {
           element={
             <RequireAuth>
               <NotePage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/tasks"
+          element={
+            <RequireAuth>
+              <TasksPage />
             </RequireAuth>
           }
         />

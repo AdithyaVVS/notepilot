@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 
 import { api } from "../api.js";
 import { useAuth } from "../auth.jsx";
@@ -20,9 +20,17 @@ export default function Topbar({ usageVersion = 0 }) {
 
   return (
     <header className="topbar">
-      <Link to="/" className="brand" aria-label="NotePilot, all notes">
-        <Wordmark />
-      </Link>
+      <div className="topbar-left">
+        <Link to="/" className="brand" aria-label="NotePilot, all notes">
+          <Wordmark />
+        </Link>
+        <nav className="nav" aria-label="Main">
+          <NavLink to="/" end>
+            Notes
+          </NavLink>
+          <NavLink to="/tasks">Tasks</NavLink>
+        </nav>
+      </div>
       <div className="topbar-right">
         {usage && (
           <span className="usage" title="The AI allowance resets every day (UTC).">
