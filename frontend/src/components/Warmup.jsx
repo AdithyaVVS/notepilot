@@ -10,10 +10,11 @@ export function useWarmup() {
   const latest = useRef(0);
 
   // A sleeping gateway fails the very first request (the host answers before the app
-  // is awake), so keep trying every 3 seconds for up to 100 seconds before giving up.
+  // is awake), and a service that is still starting answers 502. Either way, keep
+  // trying every 3 seconds for up to 3 minutes before showing a problem.
   const run = useCallback(async () => {
     const mine = ++latest.current;
-    const giveUpAt = Date.now() + 100000;
+    const giveUpAt = Date.now() + 180000;
     setState({ phase: "waking", failed: [], seconds: 0 });
     for (;;) {
       try {
@@ -22,8 +23,13 @@ export function useWarmup() {
         const failed = Object.entries(result.services)
           .filter(([, service]) => service.status !== "ok")
           .map(([name]) => name);
-        setState((s) => ({ ...s, phase: failed.length ? "partial" : "ready", failed }));
-        return;
+        if (failed.length === 0 || Date.now() + 3000 > giveUpAt) {
+          setState((s) => ({ ...s, phase: failed.length ? "partial" : "ready", failed }));
+          return;
+        }
+        // Some services are still waking up: ask again instead of showing a problem.
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        continue;
       } catch {
         if (latest.current !== mine) return;
         if (Date.now() + 3000 > giveUpAt) {
