@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "../api.js";
 
@@ -7,21 +7,39 @@ import { api } from "../api.js";
 export function useWarmup() {
   const [state, setState] = useState({ phase: "waking", failed: [], seconds: 0 });
 
+  const latest = useRef(0);
+
+  // A sleeping gateway fails the very first request (the host answers before the app
+  // is awake), so keep trying every 3 seconds for up to 100 seconds before giving up.
   const run = useCallback(async () => {
+    const mine = ++latest.current;
+    const giveUpAt = Date.now() + 100000;
     setState({ phase: "waking", failed: [], seconds: 0 });
-    try {
-      const result = await api.warmup();
-      const failed = Object.entries(result.services)
-        .filter(([, service]) => service.status !== "ok")
-        .map(([name]) => name);
-      setState((s) => ({ ...s, phase: failed.length ? "partial" : "ready", failed }));
-    } catch {
-      setState((s) => ({ ...s, phase: "unreachable", failed: [] }));
+    for (;;) {
+      try {
+        const result = await api.warmup();
+        if (latest.current !== mine) return;
+        const failed = Object.entries(result.services)
+          .filter(([, service]) => service.status !== "ok")
+          .map(([name]) => name);
+        setState((s) => ({ ...s, phase: failed.length ? "partial" : "ready", failed }));
+        return;
+      } catch {
+        if (latest.current !== mine) return;
+        if (Date.now() + 3000 > giveUpAt) {
+          setState((s) => ({ ...s, phase: "unreachable", failed: [] }));
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      }
     }
   }, []);
 
   useEffect(() => {
     run();
+    return () => {
+      latest.current += 1; // stop a retry loop that belongs to an unmounted page
+    };
   }, [run]);
 
   useEffect(() => {

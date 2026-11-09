@@ -50,19 +50,31 @@ def service_urls() -> dict[str, str]:
     }
 
 
-async def check(client: httpx.AsyncClient, name: str, url: str, timeout: float):
-    try:
-        response = await client.get(f"{url}/health", timeout=timeout)
-        if response.status_code == 200:
-            return name, response.json()
-        return name, {"status": "error", "code": response.status_code}
-    except Exception:
-        return name, {"status": "unreachable"}
+RETRY_DELAY = 2.0  # seconds between attempts while a service is waking up
 
 
-async def check_all(client: httpx.AsyncClient, timeout: float) -> dict:
+async def check(
+    client: httpx.AsyncClient, name: str, url: str, timeout: float, patience: float = 0.0
+):
+    """Asks a service for its health. With patience, keeps asking until it answers
+    or the time runs out: a sleeping free-tier service answers 502 for about a minute."""
+    deadline = time.monotonic() + patience
+    while True:
+        try:
+            response = await client.get(f"{url}/health", timeout=timeout)
+            if response.status_code == 200:
+                return name, response.json()
+            result = {"status": "error", "code": response.status_code}
+        except Exception:
+            result = {"status": "unreachable"}
+        if time.monotonic() + RETRY_DELAY >= deadline:
+            return name, result
+        await asyncio.sleep(RETRY_DELAY)
+
+
+async def check_all(client: httpx.AsyncClient, timeout: float, patience: float = 0.0) -> dict:
     results = await asyncio.gather(
-        *(check(client, name, url, timeout) for name, url in service_urls().items())
+        *(check(client, name, url, timeout, patience) for name, url in service_urls().items())
     )
     services = dict(results)
     all_ok = all(s.get("status") == "ok" for s in services.values())
@@ -88,7 +100,7 @@ async def warmup(client: httpx.AsyncClient = Depends(get_client)):
     """Wakes every service at once. On free hosting each one can take up to a
     minute to start, and waking them together costs one wait instead of three."""
     started = time.monotonic()
-    result = await check_all(client, timeout=55)
+    result = await check_all(client, timeout=10, patience=50)
     result["elapsed_ms"] = int((time.monotonic() - started) * 1000)
     return result
 

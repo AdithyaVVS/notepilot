@@ -67,3 +67,28 @@ def test_cors_blocks_other_origins(client):
         },
     )
     assert "access-control-allow-origin" not in response.headers
+
+
+def test_warmup_keeps_asking_while_a_service_wakes_up(client, upstream, monkeypatch):
+    monkeypatch.setattr("app.main.RETRY_DELAY", 0.0)
+    attempts = {"notes": 0}
+
+    def respond(request):
+        if request.url.host == "notes":
+            attempts["notes"] += 1
+            if attempts["notes"] < 4:
+                return httpx.Response(502)
+        return service_health(request)
+
+    upstream.respond = respond
+    body = client.get("/api/warmup").json()
+    assert body["status"] == "ok"
+    assert attempts["notes"] == 4
+
+
+def test_health_does_not_wait_for_a_sleeping_service(client, upstream):
+    upstream.respond = lambda request: httpx.Response(502)
+    body = client.get("/api/health").json()
+    assert body["status"] == "degraded"
+    assert body["services"]["auth"] == {"status": "error", "code": 502}
+    assert len(upstream.requests) == 3
